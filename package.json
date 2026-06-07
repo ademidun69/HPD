@@ -1,0 +1,37 @@
+{
+  "name": "honeypot-detector",
+  "version": "1.0.0",
+  "description": "A professional smart contract security analysis skill that detects honeypots, rug pulls, and malicious patterns on EVM networks, with first-class support for Pharos.",
+  "main": "src/index.js",
+  "bin": {
+    "hpd": "src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "analyze": "node src/cli.js analyze",
+    "quick": "node src/cli.js quick",
+    "simulate": "node src/cli.js simulate",
+    "test": "node test/run.test.js"
+  },
+  "keywords": [
+    "pharos",
+    "evm",
+    "smart-contract",
+    "security",
+    "honeypot",
+    "detector",
+    "ai-agent",
+    "skill",
+    "static-analysis",
+    "rug-pull"
+  ],
+  "author": "ademidun69",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "chalk": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

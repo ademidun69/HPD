@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
+    "hpd": "node src/cli.js",
     "analyze": "node src/cli.js analyze",
     "quick": "node src/cli.js quick",
     "simulate": "node src/cli.js simulate",

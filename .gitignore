@@ -7,3 +7,4 @@ dist/
 coverage/
 .fork/
 anvil.log
+node_modules/

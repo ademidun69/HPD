@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# hpd — global wrapper for the Honeypot Detector CLI
+# Usage: place this file anywhere in your PATH, or run from the repo root
+#
+# Examples:
+#   hpd init
+#   hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+#   hpd quick 0xdAC17F958D2ee523a2206206994597C13D831ec7 --no-sim
+#   hpd watch 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --interval=60
+
+# Find the real HPD installation
+HPD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# If invoked as a symlink, resolve the actual location
+if [ -L "${BASH_SOURCE[0]}" ]; then
+  HPD_DIR="$(readlink -f "${BASH_SOURCE[0]}" | xargs dirname)"
+fi
+
+# Make sure deps are installed
+if [ ! -d "$HPD_DIR/node_modules" ]; then
+  echo "Installing dependencies..."
+  (cd "$HPD_DIR" && npm install --silent) || {
+    echo "Failed to install dependencies" >&2
+    exit 1
+  }
+fi
+
+# Forward all args
+exec node "$HPD_DIR/src/cli.js" "$@"

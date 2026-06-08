@@ -1,31 +1,98 @@
 #!/usr/bin/env node
 /**
- * Honeypot Detector (HPD) CLI.
+ * Honeypot Detector (HPD) — Professional CLI
  *
  * Usage:
- *   hpd analyze <address> [--network=pharos-mainnet|pharos-testnet] [--no-sim]
- *   hpd quick <address>   [--network=pharos-mainnet|pharos-testnet]
- *   hpd simulate <address> <amountIn> [--network=pharos-mainnet|pharos-testnet]
- *   hpd ownership <address> [--network=pharos-mainnet|pharos-testnet]
+ *   hpd init                          Set up environment (RPC URL, etc.)
+ *   hpd analyze <address> [options]   Full analysis (static + sim + reputation)
+ *   hpd quick <address> [options]     Static-only check (no fork simulation)
+ *   hpd simulate <address> <amount>   Run buy/sell simulation on a forked node
+ *   hpd ownership <address>           Owner privilege report
+ *   hpd liquidity <address>           Liquidity lock status
+ *   hpd watch <address>               Live monitoring (re-analyze every N seconds)
+ *   hpd demo                          Open interactive demo URL
+ *   hpd version                       Show version
+ *   hpd help                          Show this help
+ *
+ * Options:
+ *   --network=pharos-mainnet | pharos-testnet
+ *   --no-sim                          Skip the forked-chain simulation
+ *   --json                            Output raw JSON
+ *   --no-color                        Disable colored output
+ *   --rpc=<url>                       Override RPC URL for this invocation
+ *   --interval=<seconds>              For `watch` command (default 30)
  */
 
 const chalk = require("chalk");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 const hpd = require("./index");
+const { execSync } = require("child_process");
+
+const PKG = require("../package.json");
 
 const USAGE = `
-Honeypot Detector (HPD) — smart contract security analysis
+${chalk.bold("Honeypot Detector (HPD)")} v${PKG.version} — smart contract security analysis
 
-Commands:
-  analyze <address> [--network=<net>] [--no-sim]   Full analysis
-  quick <address>   [--network=<net>]              Static-only check
-  simulate <address> <amountIn> [--network=<net>]  Buy/sell simulation
-  ownership <address> [--network=<net>]            Owner privilege report
+${chalk.bold("Usage:")}
+  hpd ${chalk.cyan("init")}                            Set up environment (RPC URL, etc.)
+  hpd ${chalk.cyan("analyze")} ${chalk.yellow("<address>")} [options]       Full analysis
+  hpd ${chalk.cyan("quick")} ${chalk.yellow("<address>")} [options]         Static-only check
+  hpd ${chalk.cyan("simulate")} ${chalk.yellow("<address> <amount>")}      Buy/sell simulation
+  hpd ${chalk.cyan("ownership")} ${chalk.yellow("<address>")} [options]   Owner privilege report
+  hpd ${chalk.cyan("liquidity")} ${chalk.yellow("<address>")} [options]   Liquidity lock status
+  hpd ${chalk.cyan("watch")} ${chalk.yellow("<address>")} [options]       Live monitoring
+  hpd ${chalk.cyan("demo")}                            Open interactive demo URL
+  hpd ${chalk.cyan("version")}                         Show version
+  hpd ${chalk.cyan("help")}                            Show this help
 
-Networks:
-  pharos-mainnet   (default)
-  pharos-testnet   Pharos Atlantic testnet
+${chalk.bold("Options:")}
+  ${chalk.green("--network")}=pharos-mainnet | pharos-testnet   Default: pharos-mainnet
+  ${chalk.green("--no-sim")}                                    Skip forked-chain simulation
+  ${chalk.green("--json")}                                      Output raw JSON
+  ${chalk.green("--no-color")}                                  Disable colored output
+  ${chalk.green("--rpc")}=${chalk.yellow("<url>")}                            Override RPC URL
+  ${chalk.green("--interval")}=${chalk.yellow("<seconds>")}                       For watch (default 30)
+
+${chalk.bold("Networks:")}
+  pharos-mainnet    Pharos mainnet (default)
+  pharos-testnet    Pharos Atlantic testnet
+
+${chalk.bold("Examples:")}
+  ${chalk.gray("$")} hpd analyze 0xdAC17F958D2ee523a2206206994597C13D831ec7
+  ${chalk.gray("$")} hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --no-sim
+  ${chalk.gray("$")} hpd quick 0x000000000000000000000000000000000000dEaD --json
+  ${chalk.gray("$")} hpd watch 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --interval=60
 `;
 
+// ---------- Config (persistent) ----------
+const CONFIG_DIR = path.join(os.homedir(), ".hpd");
+const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+
+function loadConfig() {
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      return JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
+    }
+  } catch (_) {}
+  return {};
+}
+
+function saveConfig(cfg) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
+  fs.chmodSync(CONFIG_FILE, 0o600);
+}
+
+function getRpcEnv(networkKey, opts) {
+  if (opts.rpc) return opts.rpc;
+  const cfg = loadConfig();
+  if (cfg.rpc && cfg.rpc[networkKey]) return cfg.rpc[networkKey];
+  return process.env[hpd.NETWORKS[networkKey].rpcEnv] || "";
+}
+
+// ---------- Args parser ----------
 function parseArgs(argv) {
   const args = { _: [], opts: {} };
   for (let i = 0; i < argv.length; i++) {
@@ -50,6 +117,13 @@ function getNetwork(opts) {
   return net;
 }
 
+function applyOpts(opts) {
+  if (opts.color === false || opts["no-color"] === true) {
+    chalk.level = 0;
+  }
+}
+
+// ---------- Output helpers ----------
 function colorizeVerdict(verdict) {
   switch (verdict) {
     case "HONEYPOT LIKELY": return chalk.bgRed.white.bold(` ${verdict} `);
@@ -60,15 +134,27 @@ function colorizeVerdict(verdict) {
   }
 }
 
-function printReport(report) {
+function shorten(a) {
+  if (!a || a.length < 12) return a || "";
+  return a.slice(0, 8) + "…" + a.slice(-6);
+}
+
+function printReport(report, asJson = false) {
+  if (asJson) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
   console.log();
   console.log(chalk.bold("Honeypot Detector — Analysis Report"));
   console.log(chalk.gray("─".repeat(60)));
-  console.log(`Address:    ${report.address}`);
-  console.log(`Network:    ${report.network}${report.isTestnet ? chalk.gray(" (testnet)") : ""}`);
-  console.log(`Risk Score: ${chalk.bold(report.riskScore + " / 100")}`);
-  console.log(`Verdict:    ${colorizeVerdict(report.verdict)}`);
-  console.log(`Recommendation: ${report.recommendation}`);
+  console.log(`${chalk.gray("Address:    ")} ${report.address}`);
+  console.log(`${chalk.gray("Network:    ")} ${report.network}${report.isTestnet ? chalk.gray(" (testnet)") : ""}`);
+  console.log(`${chalk.gray("Risk Score: ")} ${chalk.bold(report.riskScore + " / 100")}`);
+  console.log(`${chalk.gray("Verdict:    ")} ${colorizeVerdict(report.verdict)}`);
+  console.log(`${chalk.gray("Time:       ")} ${report.timestamp}`);
+  console.log();
+  console.log(`${chalk.bold("Recommendation:")} ${report.recommendation}`);
   console.log();
   if (report.findings.length === 0) {
     console.log(chalk.green("✓ No findings detected."));
@@ -81,42 +167,219 @@ function printReport(report) {
         medium: chalk.yellow,
         low: chalk.gray,
       }[f.severity] || chalk.white;
-      console.log(`  ${sevColor(`[${f.severity.toUpperCase()}]`)} ${chalk.bold(f.type)} — ${f.detail}`);
+      console.log(`  ${sevColor(`[${f.severity.toUpperCase().padEnd(8)}]`)} ${chalk.bold(f.type.padEnd(22))} — ${f.detail}`);
     }
+  }
+  if (report.simulation && report.simulation.mode && report.simulation.mode !== "skipped") {
+    console.log();
+    console.log(chalk.gray(`Simulation mode: ${report.simulation.mode}`));
   }
   console.log();
 }
 
+function header(text) {
+  console.log();
+  console.log(chalk.bold.cyan(text));
+  console.log(chalk.gray("─".repeat(text.length)));
+}
+
+// ---------- Commands ----------
+
+async function cmdInit(args) {
+  header("Initializing HPD");
+  const readline = require("readline").createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  const ask = (q) => new Promise((res) => readline.question(q, res));
+
+  console.log();
+  console.log("This will save your RPC URL to: " + chalk.cyan(CONFIG_FILE));
+  console.log("(Permissions: 600, only your user can read it)");
+  console.log();
+
+  const cfg = loadConfig();
+  cfg.rpc = cfg.rpc || {};
+
+  const mainnetRpc = await ask(`Pharos mainnet RPC URL [leave blank to skip]: `);
+  if (mainnetRpc.trim()) {
+    cfg.rpc["pharos-mainnet"] = mainnetRpc.trim();
+    process.env.PHAROS_MAINNET_RPC = mainnetRpc.trim();
+  }
+  const testnetRpc = await ask(`Pharos testnet RPC URL [leave blank to skip]: `);
+  if (testnetRpc.trim()) {
+    cfg.rpc["pharos-testnet"] = testnetRpc.trim();
+    process.env.PHAROS_TESTNET_RPC = testnetRpc.trim();
+  }
+  readline.close();
+
+  saveConfig(cfg);
+  console.log();
+  console.log(chalk.green("✓ Saved to " + CONFIG_FILE));
+  console.log();
+  console.log("Try: hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+  console.log();
+}
+
+async function analyzeAddress(address, opts) {
+  const network = getNetwork(opts);
+  const networkKey = network;
+  if (opts.rpc) process.env[hpd.NETWORKS[networkKey].rpcEnv] = opts.rpc;
+  const skipSim = opts["no-sim"] === true;
+  return hpd.analyzeContract(address, { network, skipSim });
+}
+
+async function cmdAnalyze(args) {
+  const address = args._[1];
+  if (!address) { console.error("Missing <address>"); console.log(USAGE); process.exit(1); }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    console.error(chalk.red("Invalid address: must be 0x + 40 hex chars"));
+    process.exit(1);
+  }
+  header(`Analyzing ${shorten(address)}`);
+  const report = await analyzeAddress(address, args.opts);
+  printReport(report, args.opts.json === true);
+}
+
+async function cmdQuick(args) {
+  const address = args._[1];
+  if (!address) { console.error("Missing <address>"); console.log(USAGE); process.exit(1); }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    console.error(chalk.red("Invalid address: must be 0x + 40 hex chars"));
+    process.exit(1);
+  }
+  header(`Quick check ${shorten(address)}`);
+  const network = getNetwork(args.opts);
+  if (args.opts.rpc) process.env[hpd.NETWORKS[network].rpcEnv] = args.opts.rpc;
+  const report = await hpd.quickCheck(address, { network });
+  printReport(report, args.opts.json === true);
+}
+
+async function cmdSimulate(args) {
+  const address = args._[1];
+  const amount = args._[2];
+  if (!address || !amount) { console.error("Missing args. Usage: hpd simulate <address> <amount>"); console.log(USAGE); process.exit(1); }
+  header(`Simulating ${shorten(address)}`);
+  const network = getNetwork(args.opts);
+  if (args.opts.rpc) process.env[hpd.NETWORKS[network].rpcEnv] = args.opts.rpc;
+  const result = await hpd.simulateTrade(address, amount, { network });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function cmdOwnership(args) {
+  const address = args._[1];
+  if (!address) { console.error("Missing <address>"); console.log(USAGE); process.exit(1); }
+  header(`Ownership ${shorten(address)}`);
+  const network = getNetwork(args.opts);
+  if (args.opts.rpc) process.env[hpd.NETWORKS[network].rpcEnv] = args.opts.rpc;
+  const result = await hpd.checkOwnership(address, { network });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function cmdLiquidity(args) {
+  const address = args._[1];
+  if (!address) { console.error("Missing <address>"); console.log(USAGE); process.exit(1); }
+  header(`Liquidity ${shorten(address)}`);
+  const network = getNetwork(args.opts);
+  if (args.opts.rpc) process.env[hpd.NETWORKS[network].rpcEnv] = args.opts.rpc;
+  const result = await hpd.checkLiquidityLock(address, { network });
+  console.log(JSON.stringify(result, null, 2));
+}
+
+async function cmdWatch(args) {
+  const address = args._[1];
+  if (!address) { console.error("Missing <address>"); console.log(USAGE); process.exit(1); }
+  const interval = parseInt(args.opts.interval || args.opts.i || "30", 10);
+  const network = getNetwork(args.opts);
+  if (args.opts.rpc) process.env[hpd.NETWORKS[network].rpcEnv] = args.opts.rpc;
+
+  console.log(chalk.cyan(`Watching ${address} every ${interval}s on ${network}. Ctrl+C to stop.`));
+  console.log();
+
+  const tick = async () => {
+    const ts = new Date().toLocaleTimeString();
+    process.stdout.write(chalk.gray(`[${ts}] `));
+    try {
+      const report = await hpd.quickCheck(address, { network });
+      const colorized = {
+        "HONEYPOT LIKELY": chalk.bgRed.white.bold(` ${report.verdict} `),
+        "HIGH RISK":       chalk.red.bold(report.verdict),
+        "CAUTION":         chalk.yellow.bold(report.verdict),
+        "SAFE":            chalk.green.bold(report.verdict),
+      }[report.verdict] || report.verdict;
+      console.log(`Score ${report.riskScore}/100 · Verdict ${colorized} · ${report.findings.length} finding(s)`);
+    } catch (err) {
+      console.log(chalk.red("Error: " + err.message));
+    }
+  };
+
+  tick();
+  setInterval(tick, interval * 1000);
+
+  // Keep alive
+  await new Promise(() => {});
+}
+
+function cmdDemo() {
+  const url = "https://ademidun69.github.io/hpd-demo/";
+  console.log();
+  console.log(chalk.bold("HPD Interactive Demo:"));
+  console.log(chalk.cyan(url));
+  console.log();
+  console.log("Opening in your default browser...");
+  try {
+    const opener = process.platform === "darwin" ? "open" :
+                   process.platform === "win32"  ? "start" : "xdg-open";
+    execSync(`${opener} ${url}`, { stdio: "ignore" });
+  } catch (_) {
+    console.log(chalk.gray("(Could not auto-open. Please copy the URL above.)"));
+  }
+}
+
+function cmdVersion() {
+  console.log(`${PKG.name} v${PKG.version}`);
+}
+
+// ---------- Main ----------
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const cmd = args._[0];
-  const address = args._[1];
-  const network = getNetwork(args.opts);
+  applyOpts(args.opts);
 
-  if (cmd === "analyze") {
-    if (!address) { console.error("Missing <address>"); console.error(USAGE); process.exit(1); }
-    const skipSim = args.opts["no-sim"] === true;
-    const report = await hpd.analyzeContract(address, { network, skipSim });
-    printReport(report);
-  } else if (cmd === "quick") {
-    if (!address) { console.error("Missing <address>"); console.error(USAGE); process.exit(1); }
-    const report = await hpd.quickCheck(address, { network });
-    printReport(report);
-  } else if (cmd === "simulate") {
-    if (!address || !args._[2]) { console.error("Missing args"); console.error(USAGE); process.exit(1); }
-    const amountIn = args._[2];
-    const result = await hpd.simulateTrade(address, amountIn, { network });
-    console.log(JSON.stringify(result, null, 2));
-  } else if (cmd === "ownership") {
-    if (!address) { console.error("Missing <address>"); console.error(USAGE); process.exit(1); }
-    const result = await hpd.checkOwnership(address, { network });
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    console.log(USAGE);
+  const cmd = args._[0];
+
+  switch (cmd) {
+    case "init":      return cmdInit(args);
+    case "analyze":   return cmdAnalyze(args);
+    case "a":         return cmdAnalyze(args);
+    case "quick":     return cmdQuick(args);
+    case "q":         return cmdQuick(args);
+    case "simulate":  return cmdSimulate(args);
+    case "sim":       return cmdSimulate(args);
+    case "ownership": return cmdOwnership(args);
+    case "owner":     return cmdOwnership(args);
+    case "liquidity": return cmdLiquidity(args);
+    case "liq":       return cmdLiquidity(args);
+    case "watch":     return cmdWatch(args);
+    case "w":         return cmdWatch(args);
+    case "demo":      return cmdDemo();
+    case "version":   return cmdVersion();
+    case "v":         return cmdVersion();
+    case "help":      return console.log(USAGE);
+    case "h":
+    case undefined:    return console.log(USAGE);
+    default:
+      // Allow bare address: hpd 0xABC... (default to analyze)
+      if (/^0x[0-9a-fA-F]{40}$/.test(cmd)) {
+        args._.unshift("analyze");
+        return cmdAnalyze(args);
+      }
+      console.error(chalk.red(`Unknown command: ${cmd}`));
+      console.log(USAGE);
+      process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error(chalk.red("Error: ") + err.message);
+  console.error(chalk.red("Error: ") + (err.stack || err.message || err));
   process.exit(1);
 });

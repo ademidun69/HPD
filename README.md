@@ -65,21 +65,83 @@ export PHAROS_TESTNET_RPC="https://your-pharos-testnet-rpc.example"
 
 ### Command Line
 
+The skill ships with a full-featured CLI. The easiest way to use it is to clone the repo and then either run via the wrapper script or install globally.
+
+#### Option A: Use the wrapper script (no global install)
+
 ```bash
-# Full analysis on Pharos mainnet
+git clone https://github.com/ademidun69/HPD.git
+cd HPD
+./hpd init              # one-time setup: save your RPC URL
+./hpd analyze 0xYourContractAddress
+```
+
+#### Option B: Install globally with npm
+
+```bash
+git clone https://github.com/ademidun69/HPD.git
+cd HPD
+npm install -g .        # registers the `hpd` command system-wide
+
+hpd init                 # one-time setup
+hpd analyze 0xYourContractAddress
+```
+
+#### All commands
+
+```bash
+hpd init                            # Set up environment (RPC URL, etc.)
+hpd analyze <address> [options]    # Full analysis (static + sim + reputation)
+hpd quick <address> [options]      # Static-only check (no fork simulation)
+hpd simulate <address> <amount>    # Buy/sell simulation on a forked node
+hpd ownership <address> [options]  # Owner privilege report
+hpd liquidity <address> [options]  # Liquidity lock status
+hpd watch <address> [options]      # Live monitoring (re-analyze on interval)
+hpd demo                            # Open the interactive demo page
+hpd version                         # Show version
+hpd help                            # Show full help
+```
+
+#### All options
+
+| Option | Description |
+|--------|-------------|
+| `--network=pharos-mainnet` | Use Pharos mainnet (default) |
+| `--network=pharos-testnet` | Use Pharos Atlantic testnet |
+| `--no-sim` | Skip the forked-chain simulation (faster) |
+| `--json` | Output raw JSON instead of formatted report |
+| `--no-color` | Disable colored output |
+| `--rpc=<url>` | Override the RPC URL for this invocation |
+| `--interval=<seconds>` | Watch interval in seconds (default 30) |
+
+#### Examples
+
+```bash
+# Full analysis on mainnet
+hpd analyze 0xdAC17F958D2ee523a2206206994597C13D831ec7
+
+# Static-only check, no colors
+hpd quick 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --no-sim --no-color
+
+# Output as JSON for piping into other tools
+hpd quick 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --no-sim --json | jq .riskScore
+
+# Bare-address shorthand
+hpd 0xdAC17F958D2ee523a2206206994597C13D831ec7
+
+# Watch a contract in real time
+hpd watch 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --interval=60
+
+# Use the testnet
+hpd analyze 0xYourTestnetAddress --network=pharos-testnet
+```
+
+#### Direct invocation (no wrapper)
+
+If you don't want to use the wrapper, you can always call node directly:
+
+```bash
 node src/cli.js analyze 0xYourContractAddress
-
-# Static-only check (no fork)
-node src/cli.js quick 0xYourContractAddress
-
-# Run a buy/sell simulation
-node src/cli.js simulate 0xYourContractAddress 0.01
-
-# Owner privilege report
-node src/cli.js ownership 0xYourContractAddress
-
-# Use the testnet instead
-node src/cli.js analyze 0xYourContractAddress --network=pharos-testnet
 ```
 
 ### As a Library

@@ -76,7 +76,10 @@ hpd init
 
 ### As a Library
 
+Save this as `analyze.js` in the HPD repo directory, then run it with `node analyze.js`:
+
 ```javascript
+// analyze.js
 const hpd = require("./src/index");
 
 (async () => {
@@ -84,10 +87,26 @@ const hpd = require("./src/index");
     network: "pharos-mainnet",  // or "pharos-testnet"
   });
 
-  console.log(report.riskScore, report.verdict);
-  console.log(report.findings);
-})();
+  console.log("Risk Score:", report.riskScore, "/ 100");
+  console.log("Verdict:   ", report.verdict);
+  console.log("Findings:");
+  for (const f of report.findings) {
+    console.log("  [" + f.severity.toUpperCase() + "]", f.type, "-", f.detail);
+  }
+  console.log("Recommendation:", report.recommendation);
+})().catch(err => {
+  console.error("Error:", err.message);
+  process.exit(1);
+});
 ```
+
+Then run it (the RPC URL is read from the env var):
+
+```bash
+PHAROS_MAINNET_RPC="https://rpc.pharos.xyz" node analyze.js
+```
+
+> **Note:** This is a Node.js script, not a shell command. Save it to a file first; pasting it directly into a shell will fail with `bash: syntax error near unexpected token '('`.
 
 ### Programmatic Functions
 
@@ -218,6 +237,8 @@ Tests cover selector extraction, risk aggregation, verdict thresholds, and recom
 │   ├── simulator.js         # Forked-chain buy/sell simulation
 │   ├── reputation.js        # Onchain context (age, deployer, holders)
 │   └── scorer.js            # Risk aggregation + verdict logic
+├── examples/
+│   └── analyze.js           # Example library-usage script (run with `node examples/analyze.js`)
 └── test/
     └── run.test.js          # Offline unit tests
 ```

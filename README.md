@@ -32,9 +32,11 @@ The default network is Pharos Mainnet. Pass `--network=pharos-testnet` to analyz
 
 ## Framework
 
-- **Node.js** >= 18
-- **ethers.js** v6
-- **Anvil** (Foundry) for forked-chain behavioral simulation
+- **Node.js** >= 18 (required)
+- **ethers.js** v6 (required, installed via `npm install`)
+- **Anvil** (Foundry) for forked-chain behavioral simulation (**optional**)
+
+The skill is fully functional without Foundry. The static analysis and reputation layers run on Node + ethers alone. The behavioral simulator (Anvil fork + buy/sell round-trip) is only one of three layers and degrades gracefully when Anvil is missing: the analyze call completes with a friendly warning and the static + reputation findings still come through. To suppress the simulator entirely, run with `HPD_FORK_MODE=off` or use the `quick` subcommand.
 
 ## Installation
 
@@ -56,7 +58,7 @@ HPD reads the Pharos RPC URL from one of these places, in order:
 |----------|----------|-------------|
 | `PHAROS_MAINNET_RPC` | Recommended | HTTPS RPC URL for Pharos mainnet |
 | `PHAROS_TESTNET_RPC` | No | HTTPS RPC URL for Pharos testnet (Atlantic) |
-| `HPD_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
+| `HPD_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`). Set to `off` to skip the Anvil-fork simulator entirely (useful on machines without Foundry). |
 
 **Quickest setup** (one line, no init step):
 

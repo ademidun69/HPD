@@ -83,7 +83,7 @@ async function liquidityLock(address, provider) {
   return { summary, findings };
 }
 
-async function findCreationBlock(address, provider, head, lookback = 5000) {
+async function findCreationBlock(address, provider, head, lookback = 50000) {
   const fromBlock = Math.max(0, head - lookback);
   try {
     const logs = await provider.getLogs({

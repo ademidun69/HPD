@@ -34,17 +34,48 @@ The default network is Pharos Mainnet. Pass `--network=pharos-testnet` to analyz
 
 - **Node.js** >= 18 (required)
 - **ethers.js** v6 (required, installed via `npm install`)
-- **Anvil** (Foundry) for forked-chain behavioral simulation (**optional**)
+- **Anvil** (Foundry) for forked-chain behavioral simulation (**required for full analyze; optional for `quick`**)
 
-The skill is fully functional without Foundry. The static analysis and reputation layers run on Node + ethers alone. The behavioral simulator (Anvil fork + buy/sell round-trip) is only one of three layers and degrades gracefully when Anvil is missing: the analyze call completes with a friendly warning and the static + reputation findings still come through. To suppress the simulator entirely, run with `HPD_FORK_MODE=off` or use the `quick` subcommand.
+The full `analyze` subcommand runs a behavioral simulator that spawns a local Anvil fork of Pharos to perform a buy + sell round-trip on the target contract. Without Anvil, that layer is skipped with a clear warning; the static + reputation findings still come through. For campaign reviewers, we recommend installing Foundry so the full three-layer pipeline is exercised.
+
+```bash
+# Install Foundry (one-time)
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+
+# Verify Foundry is in PATH
+anvil --version
+```
 
 ## Installation
+
+### Step 1: Install system dependencies
+
+```bash
+# Node.js 18+
+pkg install nodejs git   # Termux
+# or
+sudo apt install nodejs git   # Debian/Ubuntu
+```
+
+### Step 2: Install Foundry (for the behavioral simulation layer)
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+Verify: `anvil --version` should print a version like `anvil Version: 1.x.x`.
+
+### Step 3: Install HPD
 
 ```bash
 git clone https://github.com/ademidun69/HPD.git
 cd HPD
 npm install
 ```
+
+You can run `npm run check:foundry` to confirm Foundry is wired up correctly.
 
 ## Configuration
 

@@ -42,5 +42,23 @@ if [ ! -d "$HPD_DIR/node_modules" ]; then
   }
 fi
 
+# Behavioral simulation layer requires Foundry/anvil. Warn the user early
+# if they're running analyze/simulate without it, but do NOT block the
+# command — the static + reputation layers still produce useful output.
+case "${1:-}" in
+  analyze|simulate|a|sim)
+    if ! command -v anvil >/dev/null 2>&1; then
+      if [ "${HPD_FORK_MODE:-}" != "off" ]; then
+        echo "[HPD] Note: Foundry/anvil not found in PATH. The behavioral simulation" >&2
+        echo "      layer will be skipped; static + reputation findings will still be" >&2
+        echo "      reported. To enable simulation, install Foundry:" >&2
+        echo "        curl -L https://foundry.paradigm.xyz | bash && foundryup" >&2
+        echo "      Or suppress this message: HPD_FORK_MODE=off $0 $*" >&2
+        echo "" >&2
+      fi
+    fi
+    ;;
+esac
+
 # Forward all args
 exec node "$HPD_DIR/src/cli.js" "$@"

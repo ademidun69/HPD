@@ -77,10 +77,12 @@ The agent will:
 
 ## Dependencies
 
-- Node.js >= 18 (required)
-- ethers.js v6 (required, installed via `npm install`)
-- Anvil (Foundry) for forked-chain behavioral simulation (optional — the simulator layer degrades gracefully when Anvil is missing; the static + reputation layers still produce findings)
-- Pharos RPC endpoint (mainnet and/or testnet) (required)
+- **Node.js >= 18** (required)
+- **ethers.js v6** (required, installed via `npm install`)
+- **Anvil (Foundry)** for forked-chain behavioral simulation (required for `analyze`; the simulator layer is silently skipped when Anvil is missing, but the static + reputation layers still produce findings)
+- **Pharos RPC endpoint** (mainnet and/or testnet) (required)
+
+To install Foundry: `curl -L https://foundry.paradigm.xyz | bash && foundryup`
 
 ## Configuration
 

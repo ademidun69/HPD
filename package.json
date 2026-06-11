@@ -12,7 +12,8 @@
     "analyze": "node src/cli.js analyze",
     "quick": "node src/cli.js quick",
     "simulate": "node src/cli.js simulate",
-    "test": "node test/run.test.js"
+    "test": "node test/run.test.js",
+    "check:foundry": "node -e \"const{execSync}=require('child_process');try{const v=execSync('anvil --version',{stdio:['ignore','pipe','pipe']}).toString().trim();console.log('[HPD] Foundry OK:',v);process.exit(0);}catch(e){console.error('[HPD] Foundry/anvil NOT FOUND in PATH.');console.error('[HPD] The behavioral simulation layer requires Foundry.');console.error('[HPD] Install: curl -L https://foundry.paradigm.xyz | bash && foundryup');console.error('[HPD] Or set HPD_FORK_MODE=off to skip the simulator layer.');process.exit(1);}\""
   },
   "keywords": [
     "pharos",

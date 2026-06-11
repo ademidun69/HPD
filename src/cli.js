@@ -191,7 +191,29 @@ async function cmdInit(args) {
     input: process.stdin,
     output: process.stdout,
   });
-  const ask = (q) => new Promise((res) => readline.question(q, res));
+
+  // Safe ask(): if stdin closes (EOF, heredoc, paste, etc.) before the
+  // user types anything, resolve the pending question with an empty
+  // string instead of hanging forever. This makes the init flow
+  // robust against paste-bomb scenarios and piped input.
+  const ask = (q) =>
+    new Promise((res) => {
+      let settled = false;
+      const onClose = () => {
+        if (!settled) {
+          settled = true;
+          res("");
+        }
+      };
+      readline.once("close", onClose);
+      readline.question(q, (answer) => {
+        if (!settled) {
+          settled = true;
+          readline.removeListener("close", onClose);
+          res(answer);
+        }
+      });
+    });
 
   console.log();
   console.log("This will save your RPC URL to: " + chalk.cyan(CONFIG_FILE));
@@ -201,24 +223,58 @@ async function cmdInit(args) {
   const cfg = loadConfig();
   cfg.rpc = cfg.rpc || {};
 
+  function validateRpc(raw) {
+    const s = raw.trim();
+    if (!s) return { ok: false, reason: "blank" };
+    // Reject anything that doesn't look like an http(s) URL.
+    // This catches accidental paste of README command blocks, multi-line
+    // input, comments, etc.
+    if (!/^https?:\/\/\S+$/i.test(s)) {
+      return {
+        ok: false,
+        reason: "not a URL (must start with http:// or https:// and be on one line)",
+      };
+    }
+    return { ok: true, value: s };
+  }
+
   const mainnetRpc = await ask(`Pharos mainnet RPC URL [leave blank to skip]: `);
   if (mainnetRpc.trim()) {
-    cfg.rpc["pharos-mainnet"] = mainnetRpc.trim();
-    process.env.PHAROS_MAINNET_RPC = mainnetRpc.trim();
+    const v = validateRpc(mainnetRpc);
+    if (!v.ok) {
+      console.log(chalk.yellow("  ! Skipped: " + v.reason));
+    } else {
+      cfg.rpc["pharos-mainnet"] = v.value;
+      process.env.PHAROS_MAINNET_RPC = v.value;
+      console.log(chalk.green("  ✓ Mainnet RPC saved."));
+    }
   }
   const testnetRpc = await ask(`Pharos testnet RPC URL [leave blank to skip]: `);
   if (testnetRpc.trim()) {
-    cfg.rpc["pharos-testnet"] = testnetRpc.trim();
-    process.env.PHAROS_TESTNET_RPC = testnetRpc.trim();
+    const v = validateRpc(testnetRpc);
+    if (!v.ok) {
+      console.log(chalk.yellow("  ! Skipped: " + v.reason));
+    } else {
+      cfg.rpc["pharos-testnet"] = v.value;
+      process.env.PHAROS_TESTNET_RPC = v.value;
+      console.log(chalk.green("  ✓ Testnet RPC saved."));
+    }
   }
   readline.close();
 
-  saveConfig(cfg);
-  console.log();
-  console.log(chalk.green("✓ Saved to " + CONFIG_FILE));
-  console.log();
-  console.log("Try: hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-  console.log();
+  try {
+    saveConfig(cfg);
+    console.log();
+    console.log(chalk.green("✓ Saved to " + CONFIG_FILE));
+    console.log();
+    console.log("Try: hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    console.log();
+  } catch (err) {
+    console.error(chalk.red("✗ Failed to save config: " + err.message));
+    console.error(chalk.gray("  You can still use hpd by setting the env var directly:"));
+    console.error(chalk.cyan("  export PHAROS_MAINNET_RPC=\"https://rpc.pharos.xyz\""));
+    process.exit(1);
+  }
 }
 
 async function analyzeAddress(address, opts) {

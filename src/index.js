@@ -22,7 +22,7 @@ const NETWORKS = {
     chainId: 1672,
     rpcEnv: "PHAROS_MAINNET_RPC",
     defaultRpc: "",
-    explorer: "https://pharosscan.xyz",
+    explorer: "https://www.pharosscan.xyz",
     isTestnet: false,
   },
   "pharos-testnet": {

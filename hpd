@@ -3,10 +3,10 @@
 # Usage: place this file anywhere in your PATH, or run from the repo root
 #
 # Examples:
-#   hpd init
-#   hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+#   PHAROS_MAINNET_RPC=https://rpc.pharos.xyz hpd analyze 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
 #   hpd quick 0xdAC17F958D2ee523a2206206994597C13D831ec7 --no-sim
 #   hpd watch 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2 --interval=60
+#   hpd init         # optional: save RPC URL to ~/.hpd/config.json
 
 # Find the real HPD installation
 HPD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,8 +23,18 @@ if [ -L "${BASH_SOURCE[0]}" ]; then
   fi
 fi
 
-# Make sure deps are installed
+# Make sure node is available
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: 'node' is not installed. On Termux, install with: pkg install nodejs" >&2
+  exit 1
+fi
+
+# Make sure npm is available when we need to install deps
 if [ ! -d "$HPD_DIR/node_modules" ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Error: 'npm' is not installed. On Termux, install with: pkg install nodejs" >&2
+    exit 1
+  fi
   echo "Installing dependencies..."
   (cd "$HPD_DIR" && npm install --silent) || {
     echo "Failed to install dependencies" >&2

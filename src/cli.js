@@ -186,16 +186,46 @@ function header(text) {
 // ---------- Commands ----------
 
 async function cmdInit(args) {
-  header("Initializing HPD");
+  // The init command is OPTIONAL. HPD reads the RPC URL from the
+  // PHAROS_MAINNET_RPC environment variable first, then falls back to
+  // the config file at ~/.hpd/config.json.
+  //
+  // Behavior:
+  //   - If stdin is NOT a TTY (piped, heredoc, paste from clipboard,
+  //     non-interactive shell), print the one-line env-var command
+  //     and exit 0. We don't try to prompt because in those modes
+  //     any "answer" is unreliable (it's whatever the caller piped in).
+  //   - If stdin IS a TTY, prompt the user for a mainnet RPC URL,
+  //     validate it, and save it to the config file.
+  //
+  // Either way, the result is the same: hpd can now reach Pharos.
+
+  const isTTY = !!process.stdin.isTTY;
+
+  if (!isTTY) {
+    console.log();
+    console.log(chalk.cyan("Pharos RPC setup"));
+    console.log();
+    console.log("HPD reads the RPC URL from the env var first. To set it for this shell:");
+    console.log();
+    console.log("  " + chalk.green('export PHAROS_MAINNET_RPC="https://rpc.pharos.xyz"'));
+    console.log();
+    console.log("Or, persist it across shells with:");
+    console.log();
+    console.log("  " + chalk.green("echo 'export PHAROS_MAINNET_RPC=\"https://rpc.pharos.xyz\"' >> ~/.bashrc"));
+    console.log();
+    console.log("Run " + chalk.cyan("hpd init") + " again from a real terminal to save it to " + CONFIG_FILE + ".");
+    console.log();
+    return;
+  }
+
   const readline = require("readline").createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
-  // Safe ask(): if stdin closes (EOF, heredoc, paste, etc.) before the
-  // user types anything, resolve the pending question with an empty
-  // string instead of hanging forever. This makes the init flow
-  // robust against paste-bomb scenarios and piped input.
+  // Safe ask(): resolves with "" if stdin closes (Ctrl+D, EOF) before
+  // the user types anything, so the prompt never hangs the process.
   const ask = (q) =>
     new Promise((res) => {
       let settled = false;
@@ -226,9 +256,6 @@ async function cmdInit(args) {
   function validateRpc(raw) {
     const s = raw.trim();
     if (!s) return { ok: false, reason: "blank" };
-    // Reject anything that doesn't look like an http(s) URL.
-    // This catches accidental paste of README command blocks, multi-line
-    // input, comments, etc.
     if (!/^https?:\/\/\S+$/i.test(s)) {
       return {
         ok: false,
@@ -238,28 +265,22 @@ async function cmdInit(args) {
     return { ok: true, value: s };
   }
 
-  const mainnetRpc = await ask(`Pharos mainnet RPC URL [leave blank to skip]: `);
-  if (mainnetRpc.trim()) {
-    const v = validateRpc(mainnetRpc);
-    if (!v.ok) {
-      console.log(chalk.yellow("  ! Skipped: " + v.reason));
-    } else {
-      cfg.rpc["pharos-mainnet"] = v.value;
-      process.env.PHAROS_MAINNET_RPC = v.value;
-      console.log(chalk.green("  ✓ Mainnet RPC saved."));
-    }
+  // ONE prompt only. Mainnet is the only one that matters for the
+  // default flow; testnet is rare and can be set later via env var.
+  const mainnetRpc = await ask(`Pharos mainnet RPC URL [https://rpc.pharos.xyz]: `);
+  const v = validateRpc(mainnetRpc);
+
+  if (mainnetRpc.trim() && !v.ok) {
+    console.log(chalk.yellow("  ! Skipped: " + v.reason));
+  } else if (v.ok) {
+    cfg.rpc["pharos-mainnet"] = v.value;
+    process.env.PHAROS_MAINNET_RPC = v.value;
+    console.log(chalk.green("  ✓ Mainnet RPC saved."));
+  } else {
+    // Empty: just remind the user what to do, no failure.
+    console.log(chalk.gray("  (no mainnet RPC set; you can use PHAROS_MAINNET_RPC env var instead)"));
   }
-  const testnetRpc = await ask(`Pharos testnet RPC URL [leave blank to skip]: `);
-  if (testnetRpc.trim()) {
-    const v = validateRpc(testnetRpc);
-    if (!v.ok) {
-      console.log(chalk.yellow("  ! Skipped: " + v.reason));
-    } else {
-      cfg.rpc["pharos-testnet"] = v.value;
-      process.env.PHAROS_TESTNET_RPC = v.value;
-      console.log(chalk.green("  ✓ Testnet RPC saved."));
-    }
-  }
+
   readline.close();
 
   try {

@@ -88,9 +88,11 @@ Set the following environment variables before use:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PHAROS_MAINNET_RPC` | Yes | HTTPS RPC URL for Pharos mainnet |
+| `PHAROS_MAINNET_RPC` | Recommended | HTTPS RPC URL for Pharos mainnet |
 | `PHAROS_TESTNET_RPC` | No | HTTPS RPC URL for Pharos testnet (Atlantic) |
 | `HPD_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
+
+`PHAROS_MAINNET_RPC` can also be supplied per-invocation via the `--rpc=<url>` CLI flag, or persisted across shells by running `hpd init` interactively.
 
 ## Security Notes
 

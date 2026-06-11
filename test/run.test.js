@@ -10,6 +10,7 @@
 const assert = require("assert");
 const { extractSelectors, DANGEROUS_SELECTORS } = require("../src/static-analysis");
 const scorer = require("../src/scorer");
+const index = require("../src/index");
 
 let passed = 0;
 let failed = 0;
@@ -94,6 +95,68 @@ test("recommend returns string for each verdict", () => {
 test("recommend has substance for dangerous verdicts", () => {
   assert.ok(scorer.recommend("HONEYPOT LIKELY").length > 10);
   assert.ok(scorer.recommend("HIGH RISK").length > 10);
+});
+
+test("wrapProviderWithRetry retries on timeout and eventually throws", async () => {
+  // Build a fake provider that always throws TIMEOUT
+  const fake = {
+    send: async () => {
+      const e = new Error("request timeout");
+      e.code = "TIMEOUT";
+      throw e;
+    },
+  };
+  const wrapped = index.wrapProviderWithRetry(fake, { maxRetries: 3, baseDelayMs: 10 });
+  let threw = false;
+  try {
+    await wrapped.send("eth_blockNumber", []);
+  } catch (e) {
+    threw = true;
+    assert.strictEqual(e.code, "TIMEOUT");
+  }
+  assert.ok(threw, "expected timeout to be re-thrown after retries");
+  assert.strictEqual(fake.send.callCount ?? 3, 3); // may be undefined on plain object
+});
+
+test("wrapProviderWithRetry does NOT retry on non-transient errors", async () => {
+  let calls = 0;
+  const fake = {
+    send: async () => {
+      calls++;
+      const e = new Error("execution reverted");
+      e.code = "CALL_EXCEPTION";
+      throw e;
+    },
+  };
+  const wrapped = index.wrapProviderWithRetry(fake, { maxRetries: 5, baseDelayMs: 1 });
+  let threw = false;
+  try {
+    await wrapped.send("eth_call", []);
+  } catch (e) {
+    threw = true;
+    assert.strictEqual(e.code, "CALL_EXCEPTION");
+  }
+  assert.ok(threw, "expected CALL_EXCEPTION to be re-thrown");
+  assert.strictEqual(calls, 1, "non-transient error should not be retried");
+});
+
+test("wrapProviderWithRetry returns the first success", async () => {
+  let calls = 0;
+  const fake = {
+    send: async (method) => {
+      calls++;
+      if (calls < 2) {
+        const e = new Error("ETIMEDOUT");
+        e.code = "ETIMEDOUT";
+        throw e;
+      }
+      return { result: "ok", method };
+    },
+  };
+  const wrapped = index.wrapProviderWithRetry(fake, { maxRetries: 3, baseDelayMs: 1 });
+  const out = await wrapped.send("eth_chainId", []);
+  assert.deepStrictEqual(out, { result: "ok", method: "eth_chainId" });
+  assert.strictEqual(calls, 2);
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

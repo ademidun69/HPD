@@ -13,6 +13,40 @@ const reputation = require("./reputation");
 const scorer = require("./scorer");
 
 /**
+ * Wrap a JsonRpcProvider's send method with exponential-backoff retry
+ * for transient errors (timeout, 5xx, network resets). Helps a lot on
+ * mobile networks and against rate-limited public RPCs.
+ */
+function wrapProviderWithRetry(provider, { maxRetries = 3, baseDelayMs = 500 } = {}) {
+  const orig = provider.send.bind(provider);
+  provider.send = async (method, params) => {
+    let lastErr;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await orig(method, params);
+      } catch (err) {
+        lastErr = err;
+        const msg = (err && err.message) || String(err);
+        const isTransient =
+          msg.includes("timeout") ||
+          msg.includes("TIMEOUT") ||
+          msg.includes("ETIMEDOUT") ||
+          msg.includes("ECONNRESET") ||
+          msg.includes("ECONNREFUSED") ||
+          msg.includes("fetch failed") ||
+          msg.includes("network does not support ENS") ||
+          (err.code && ["TIMEOUT", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN"].includes(err.code));
+        if (!isTransient || attempt === maxRetries - 1) break;
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    throw lastErr;
+  };
+  return provider;
+}
+
+/**
  * Network configurations.
  * Pharos mainnet is the default; testnet is opt-in.
  */
@@ -51,7 +85,7 @@ function getProvider(networkKey) {
       `Missing RPC URL. Set the ${config.rpcEnv} environment variable.`
     );
   }
-  return { provider: new ethers.JsonRpcProvider(rpc), config };
+  return { provider: wrapProviderWithRetry(new ethers.JsonRpcProvider(rpc)), config };
 }
 
 /**

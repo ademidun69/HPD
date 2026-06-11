@@ -90,7 +90,7 @@ Set the following environment variables before use:
 |----------|----------|-------------|
 | `PHAROS_MAINNET_RPC` | Yes | HTTPS RPC URL for Pharos mainnet |
 | `PHAROS_TESTNET_RPC` | No | HTTPS RPC URL for Pharos testnet (Atlantic) |
-| `SAP_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
+| `HPD_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
 
 ## Security Notes
 

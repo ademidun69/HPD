@@ -25,7 +25,7 @@ async function run(address, provider, config) {
 
     const forkedProvider = new ethers.JsonRpcProvider(ANVIL_URL);
     const code = await forkedProvider.getCode(address);
-    if (code === "0x" || code === "0x") {
+    if (code === "0x" || code === "0x0") {
       findings.push({
         type: "NOT_CONTRACT",
         severity: "critical",
@@ -149,7 +149,10 @@ function startAnvilFork(upstreamProvider, config) {
   return new Promise((resolve, reject) => {
     const upstream = process.env[config.rpcEnv];
     if (!upstream) {
-      reject(new Error(`No upstream RPC for ${config.rpcEnv}`));
+      reject(new Error(
+        `No upstream RPC for ${config.rpcEnv}. ` +
+        `Set PHAROS_MAINNET_RPC / PHAROS_TESTNET_RPC, or run with HPD_FORK_MODE=off to skip the fork.`
+      ));
       return;
     }
     const args = [
@@ -161,7 +164,13 @@ function startAnvilFork(upstreamProvider, config) {
 
     let resolved = false;
     proc.on("error", (err) => {
-      if (!resolved) { resolved = true; reject(err); }
+      if (!resolved) {
+        resolved = true;
+        reject(new Error(
+          `Could not start anvil (${err.message}). ` +
+          `Install Foundry (https://book.getfoundry.sh/) or run with HPD_FORK_MODE=off.`
+        ));
+      }
     });
     proc.stderr.on("data", (data) => {
       const msg = data.toString();

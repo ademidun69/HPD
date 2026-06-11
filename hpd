@@ -11,9 +11,16 @@
 # Find the real HPD installation
 HPD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# If invoked as a symlink, resolve the actual location
+# If invoked as a symlink, resolve the actual location (portable: works on macOS + Linux)
 if [ -L "${BASH_SOURCE[0]}" ]; then
-  HPD_DIR="$(readlink -f "${BASH_SOURCE[0]}" | xargs dirname)"
+  if command -v readlink >/dev/null 2>&1; then
+    if readlink -f "${BASH_SOURCE[0]}" >/dev/null 2>&1; then
+      HPD_DIR="$(readlink -f "${BASH_SOURCE[0]}" | xargs dirname)"
+    else
+      # macOS / BSD readlink does not support -f
+      HPD_DIR="$(cd "$(dirname "$(readlink "${BASH_SOURCE[0]}")")" && pwd)"
+    fi
+  fi
 fi
 
 # Make sure deps are installed

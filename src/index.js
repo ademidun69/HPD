@@ -19,18 +19,18 @@ const scorer = require("./scorer");
 const NETWORKS = {
   "pharos-mainnet": {
     name: "Pharos Mainnet",
-    chainId: 161201,
+    chainId: 1672,
     rpcEnv: "PHAROS_MAINNET_RPC",
     defaultRpc: "",
-    explorer: "https://pharosscan.com",
+    explorer: "https://pharosscan.xyz",
     isTestnet: false,
   },
   "pharos-testnet": {
     name: "Pharos Testnet (Atlantic)",
-    chainId: 161202,
+    chainId: 688689,
     rpcEnv: "PHAROS_TESTNET_RPC",
     defaultRpc: "",
-    explorer: "https://atlantic.pharosscan.com",
+    explorer: "https://pharos-testnet.socialscan.io",
     isTestnet: true,
   },
 };
@@ -75,7 +75,7 @@ async function analyzeContract(address, options = {}) {
 
   // 2. Behavioral simulation (optional)
   let simReport = null;
-  const forkMode = process.env.HPD_FORK_MODE || process.env.SAP_FORK_MODE || "auto";
+  const forkMode = process.env.HPD_FORK_MODE || "auto";
   const shouldSim =
     !options.skipSim && forkMode !== "off" && !staticReport.isERC20Only;
 

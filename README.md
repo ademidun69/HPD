@@ -25,8 +25,8 @@ The skill is designed to be invoked by AI agents before they interact with an un
 
 | Network | Role | Chain ID |
 |---------|------|----------|
-| **Pharos Mainnet** | Primary | 161201 |
-| Pharos Testnet (Atlantic) | Additional, for testing | 161202 |
+| **Pharos Mainnet** | Primary | 1672 |
+| Pharos Testnet (Atlantic) | Additional, for testing | 688689 |
 
 The default network is Pharos Mainnet. Pass `--network=pharos-testnet` to analyze a contract on the Atlantic testnet.
 
@@ -52,7 +52,7 @@ Set the following environment variables:
 |----------|----------|-------------|
 | `PHAROS_MAINNET_RPC` | Yes | HTTPS RPC URL for Pharos mainnet |
 | `PHAROS_TESTNET_RPC` | No | HTTPS RPC URL for Pharos testnet (Atlantic) |
-| `SAP_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
+| `HPD_FORK_MODE` | No | `auto`, `always`, or `off` (default `auto`) |
 
 Example:
 
